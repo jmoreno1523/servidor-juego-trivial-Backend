@@ -18,12 +18,16 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "."
-          target: "/home/ubuntu/backend"
-          rm: false           # 👈 NO borrar el directorio destino
-          overwrite: true     # ok sobreescribir archivos del repo
+          source: |
+            .
+            !.git
+            !.github
+            !node_modules
+          target: /home/ubuntu/backend
+          rm: false          # NO borrar el directorio destino
+          overwrite: true    # Sobre-escribir archivos del repo si cambian
 
-      # (OPCIÓN A) Re-crear .env desde secrets de GitHub
+      # Re-crear .env en el servidor desde secrets de GitHub
       - name: Escribir .env en el servidor
         uses: appleboy/ssh-action@v1.0.0
         with:
@@ -33,7 +37,6 @@ jobs:
           script: |
             set -e
             cd /home/ubuntu/backend
-            # Crea/actualiza .env desde secrets de GitHub
             cat > .env << 'EOF'
             MONGO_URI=${{ secrets.MONGO_URI }}
             PORT=4000
@@ -41,7 +44,7 @@ jobs:
             chmod 600 .env
             echo ".env actualizado"
 
-      - name: Instalar y reiniciar con PM2 (SSH)
+      - name: Instalar dependencias y levantar con PM2
         uses: appleboy/ssh-action@v1.0.0
         with:
           host: ${{ secrets.EC2_HOST }}
@@ -54,6 +57,3 @@ jobs:
             pm2 restart backend || pm2 start server.js --name backend
             pm2 save
 
-            # Reiniciar / crear proceso con nombre estable
-            pm2 restart backend || pm2 start server.js --name backend
-            pm2 save
