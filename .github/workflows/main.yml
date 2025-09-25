@@ -18,12 +18,28 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          port: 22
           source: "."
           target: "/home/ubuntu/backend"
-          rm: true
-          overwrite: true
-          # (Opcional) exclude: ".git,node_modules,.github"
+          rm: false           # 👈 NO borrar el directorio destino
+          overwrite: true     # ok sobreescribir archivos del repo
+
+      # (OPCIÓN A) Re-crear .env desde secrets de GitHub
+      - name: Escribir .env en el servidor
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            set -e
+            cd /home/ubuntu/backend
+            # Crea/actualiza .env desde secrets de GitHub
+            cat > .env << 'EOF'
+            MONGO_URI=${{ secrets.MONGO_URI }}
+            PORT=4000
+            EOF
+            chmod 600 .env
+            echo ".env actualizado"
 
       - name: Instalar y reiniciar con PM2 (SSH)
         uses: appleboy/ssh-action@v1.0.0
@@ -34,25 +50,9 @@ jobs:
           script: |
             set -e
             cd /home/ubuntu/backend
-
-            # Asegurar Node (si no estuviera)
-            if ! command -v node >/dev/null 2>&1; then
-              curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
-              sudo apt-get install -y nodejs
-            fi
-
-            # Asegurar PM2 (si no estuviera)
-            if ! command -v pm2 >/dev/null 2>&1; then
-              sudo npm i -g pm2
-            fi
-
-            # Instalar deps (ci con fallback)
-            npm ci --omit=dev || npm install --omit=dev
-
-            # RECREAR .env desde Secrets para que no se pierda con rm:true
-            # (Agrega estos secrets en GitHub: Settings > Secrets and variables > Actions)
-            echo "MONGO_URI=${{ secrets.MONGO_URI }}" > .env
-            echo "PORT=${{ secrets.PORT || 4000 }}" >> .env
+            npm ci --omit=dev
+            pm2 restart backend || pm2 start server.js --name backend
+            pm2 save
 
             # Reiniciar / crear proceso con nombre estable
             pm2 restart backend || pm2 start server.js --name backend
