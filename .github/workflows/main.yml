@@ -56,6 +56,3 @@ jobs:
             # Arranca o reinicia; --update-env para que PM2 coja el nuevo .env si lo usas en PM2
             pm2 restart backend --update-env || pm2 start server.js --name backend --node-args="-r dotenv/config"
             pm2 save
-
-
-
