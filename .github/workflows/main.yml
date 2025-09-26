@@ -11,14 +11,15 @@ jobs:
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
-      - name: Crear artefacto .tar.gz (excluye .git/.github/node_modules)
+      # Empaqueta SOLO lo versionado en HEAD (no incluye .git; excluimos .github)
+      - name: Crear artefacto .tar.gz (estable)
         run: |
-          tar -czf backend.tar.gz \
-            --exclude=".git" \
-            --exclude=".github" \
-            --exclude="node_modules" \
-            .
+          git archive --format=tar.gz -o backend.tar.gz HEAD \
+            -- . ':(exclude).github'
+          ls -lh backend.tar.gz
 
       - name: Copiar artefacto al servidor (SCP)
         uses: appleboy/scp-action@v0.1.7
@@ -38,6 +39,8 @@ jobs:
           script: |
             set -e
             cd /home/ubuntu
+
+            # Descomprimir artefacto en carpeta backend/
             mkdir -p backend
             tar -xzf backend.tar.gz -C backend
             rm -f backend.tar.gz
@@ -50,8 +53,8 @@ jobs:
             chmod 600 backend/.env
             echo ".env actualizado"
 
+            # Instalar deps y (re)iniciar con PM2
             cd backend
             npm ci --omit=dev
             pm2 restart backend || pm2 start server.js --name backend --node-args="-r dotenv/config"
             pm2 save
-
