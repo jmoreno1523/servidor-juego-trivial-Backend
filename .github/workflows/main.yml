@@ -7,6 +7,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
@@ -40,12 +41,17 @@ jobs:
             mkdir -p backend
             tar -xzf backend.tar.gz -C backend
             rm -f backend.tar.gz
+
+            # Re-crear .env desde los secrets
             cat > backend/.env << 'EOF'
             MONGO_URI=${{ secrets.MONGO_URI }}
             PORT=4000
             EOF
             chmod 600 backend/.env
+            echo ".env actualizado"
+
             cd backend
             npm ci --omit=dev
             pm2 restart backend || pm2 start server.js --name backend --node-args="-r dotenv/config"
             pm2 save
+
