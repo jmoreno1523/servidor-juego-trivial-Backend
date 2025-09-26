@@ -7,58 +7,45 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
-      
-      - name: Copiar archivos al servidor (SCP)
+
+      - name: Crear artefacto .tar.gz (excluye .git/.github/node_modules)
+        run: |
+          tar -czf backend.tar.gz \
+            --exclude=".git" \
+            --exclude=".github" \
+            --exclude="node_modules" \
+            .
+
+      - name: Copiar artefacto al servidor (SCP)
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          target: /home/ubuntu/backend
-          rm: false
-          overwrite: true
-          # Incluye todo recursivo y luego excluye directorios pesados
-          source: |
-            **/*
-            !.git/**
-            !.github/**
-            !node_modules/**
+          source: "backend.tar.gz"
+          target: "/home/ubuntu"
 
-
-
-      # Re-crear .env en el servidor con el valor REAL del secret
-      - name: Escribir .env en el servidor
+      - name: Desplegar en EC2 (SSH)
         uses: appleboy/ssh-action@v1.0.0
-        env:
-          MONGO_URI: ${{ secrets.MONGO_URI }}   # <-- inyecta el secret en una env var del job
         with:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
           script: |
             set -e
-            cd /home/ubuntu/backend
-            cat > .env <<EOF
-            MONGO_URI=${MONGO_URI}
+            cd /home/ubuntu
+            mkdir -p backend
+            tar -xzf backend.tar.gz -C backend
+            rm -f backend.tar.gz
+            cat > backend/.env << 'EOF'
+            MONGO_URI=${{ secrets.MONGO_URI }}
             PORT=4000
             EOF
-            chmod 600 .env
-            echo ".env actualizado"
-
-      - name: Instalar dependencias y levantar con PM2
-        uses: appleboy/ssh-action@v1.0.0
-        with:
-          host: ${{ secrets.EC2_HOST }}
-          username: ubuntu
-          key: ${{ secrets.EC2_SSH_KEY }}
-          script: |
-            set -e
-            cd /home/ubuntu/backend
+            chmod 600 backend/.env
+            cd backend
             npm ci --omit=dev
-            # Arranca o reinicia; --update-env para que PM2 coja el nuevo .env si lo usas en PM2
-            pm2 restart backend --update-env || pm2 start server.js --name backend --node-args="-r dotenv/config"
+            pm2 restart backend || pm2 start server.js --name backend --node-args="-r dotenv/config"
             pm2 save
