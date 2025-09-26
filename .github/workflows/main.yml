@@ -11,7 +11,7 @@ jobs:
     steps:
       - name: Checkout código
         uses: actions/checkout@v4
-
+      
       - name: Copiar archivos al servidor (SCP)
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -21,11 +21,13 @@ jobs:
           target: /home/ubuntu/backend
           rm: false
           overwrite: true
+          # Incluye todo recursivo y luego excluye directorios pesados
           source: |
-            .
-            !.git/**          # excluye todo .git
-            !.github/**       # excluye workflows
-            !node_modules/**  # excluye node_modules
+            **/*
+            !.git/**
+            !.github/**
+            !node_modules/**
+
 
 
       # Re-crear .env en el servidor con el valor REAL del secret
