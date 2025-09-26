@@ -18,11 +18,15 @@ jobs:
           host: ${{ secrets.EC2_HOST }}
           username: ubuntu
           key: ${{ secrets.EC2_SSH_KEY }}
-          source: "."
           target: /home/ubuntu/backend
-          exclude: ".git,.github,node_modules"
           rm: false
           overwrite: true
+          source: |
+            .
+            !.git/**          # excluye todo .git
+            !.github/**       # excluye workflows
+            !node_modules/**  # excluye node_modules
+
 
       # Re-crear .env en el servidor con el valor REAL del secret
       - name: Escribir .env en el servidor
